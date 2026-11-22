@@ -2,44 +2,10 @@ const C=window.STORE_CONFIG||{},db=window.supabase?.createClient(C.SUPABASE_URL|
 const $=id=>document.getElementById(id),esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])),slug=s=>String(s||"").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"");
 let cats=[],brands=[],products=[],orders=[],settings={};
 const good=()=>db&&C.SUPABASE_URL&&!C.SUPABASE_URL.includes("PROJECT-REF")&&C.SUPABASE_ANON_KEY&&!C.SUPABASE_ANON_KEY.startsWith("ISI_");
-function msg(s){
-  const loginMsg=$("loginMsg");
-  if(loginMsg) loginMsg.textContent=s;
-  const dashboardMsg=$("dashboardMsg");
-  if(dashboardMsg){dashboardMsg.textContent=s;dashboardMsg.hidden=!s;}
-}
+function msg(s){$("loginMsg").textContent=s}
 async function compressImage(file){if(!file)return null;if(!file.type.startsWith("image/"))throw Error("File harus berupa gambar");if(file.size>15*1024*1024)throw Error("Ukuran foto maksimal 15 MB");let bitmap=await createImageBitmap(file),scale=Math.min(1,1600/Math.max(bitmap.width,bitmap.height)),canvas=document.createElement("canvas");canvas.width=Math.round(bitmap.width*scale);canvas.height=Math.round(bitmap.height*scale);canvas.getContext("2d").drawImage(bitmap,0,0,canvas.width,canvas.height);return await new Promise(resolve=>canvas.toBlob(resolve,"image/webp",.86))}
 async function upload(file,folder){if(!file)return "";let blob=await compressImage(file),path=`${folder}/${Date.now()}-${Math.random().toString(36).slice(2)}.webp`,{error}=await db.storage.from("store-images").upload(path,blob,{upsert:false,contentType:"image/webp"});if(error)throw error;return db.storage.from("store-images").getPublicUrl(path).data.publicUrl}
-async function refresh(){
-  const results=await Promise.all([
-    db.from("categories").select("*").order("name"),
-    db.from("brands").select("*").order("name"),
-    db.from("products").select("*,brands(name)").order("created_at",{ascending:false}).limit(2500),
-    db.from("orders").select("*").order("created_at",{ascending:false}).limit(500),
-    db.from("store_settings").select("*")
-  ]);
-  const labels=["Kategori","Brand","Produk","Pesanan","Pengaturan toko"];
-  const errors=results.map((r,i)=>r.error?`${labels[i]}: ${r.error.message}`:null).filter(Boolean);
-  cats=results[0].data||[];
-  brands=results[1].data||[];
-  products=results[2].data||[];
-  orders=results[3].data||[];
-  settings={};
-  (results[4].data||[]).forEach(x=>settings[x.key]=x.value);
-  fillSelects();
-  renderTables();
-  $("statCats").textContent=results[0].error?"—":cats.length;
-  $("statBrands").textContent=results[1].error?"—":brands.length;
-  $("statProducts").textContent=results[2].error?"—":products.length;
-  $("statOrders").textContent=results[3].error?"—":orders.filter(x=>["baru","menunggu pembayaran"].includes(x.status)).length;
-  $("recentOrders").innerHTML=orderTable(orders.slice(0,5));
-  $("trackingUrl").value=settings.tracking_url||"";
-  $("tiktokUrl").value=settings.tiktok_url||"";
-  $("instagramUrl").value=settings.instagram_url||"";
-  $("facebookUrl").value=settings.facebook_url||"";
-  $("mapUrl").value=settings.map_url||"";
-  msg(errors.length?"Sebagian data dashboard gagal dimuat: "+errors.join(" | "):"");
-}
+async function refresh(){let [c,b,p,o,s]=await Promise.all([db.from("categories").select("*").order("name"),db.from("brands").select("*").order("name"),db.from("products").select("*,brands(name)").order("created_at",{ascending:false}).limit(2500),db.from("orders").select("*").order("created_at",{ascending:false}).limit(500),db.from("store_settings").select("*")]);let err=c.error||b.error||p.error||o.error||s.error;if(err){msg("Database belum siap: "+err.message);return}cats=c.data||[];brands=b.data||[];products=p.data||[];orders=o.data||[];settings={};(s.data||[]).forEach(x=>settings[x.key]=x.value);fillSelects();renderTables();$("statCats").textContent=cats.length;$("statBrands").textContent=brands.length;$("statProducts").textContent=products.length;$("statOrders").textContent=orders.filter(x=>["baru","menunggu pembayaran"].includes(x.status)).length;$("recentOrders").innerHTML=orderTable(orders.slice(0,5));$("trackingUrl").value=settings.tracking_url||"";$("tiktokUrl").value=settings.tiktok_url||"";$("instagramUrl").value=settings.instagram_url||"";$("facebookUrl").value=settings.facebook_url||"";$("mapUrl").value=settings.map_url||""}
 function fillSelects(){let c='<option value="">Pilih kategori</option>'+cats.map(x=>`<option value="${esc(x.id)}">${esc(x.name)}</option>`).join(""),b='<option value="">Pilih brand</option>'+brands.map(x=>`<option value="${esc(x.id)}">${esc(x.name)}</option>`).join("");$("bCategory").innerHTML=c;$("pCategory").innerHTML=c;$("pBrand").innerHTML=b}
 function table(rows,cols){return `<table><thead><tr>${cols.map(x=>`<th>${x}</th>`).join("")}</tr></thead><tbody>${rows||'<tr><td colspan="5">Belum ada data.</td></tr>'}</tbody></table>`}
 function renderTables(){$("categoryRows").innerHTML=table(cats.map(x=>`<tr><td>${x.image_url?`<img src="${esc(x.image_url)}" style="width:38px;height:38px;object-fit:contain">`:"—"}</td><td>${esc(x.name)}<br><small>${esc(x.id)}</small></td><td>${esc(x.description)}</td><td><button data-cedit="${esc(x.id)}">Edit</button><button data-cdel="${esc(x.id)}">Hapus</button></td></tr>`).join(""),["Foto","Kategori","Deskripsi","Aksi"]);
