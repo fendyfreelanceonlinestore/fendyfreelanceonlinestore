@@ -77,6 +77,14 @@ function search(q){query=q.toLowerCase().trim();syncSearchClear();if(!query){$("
 if("scrollRestoration" in history)history.scrollRestoration="manual";
 window.addEventListener("popstate",e=>{
  if($("imageZoom")&&!$("imageZoom").hidden){closeImageZoom(true);return}
+ // Saat hasil pencarian sedang terbuka (bukan halaman detail), tombol Back
+ // berfungsi seperti tombol X: tutup hasil pencarian tanpa meninggalkan halaman.
+ if($("detailView").hidden && String($("search").value||"").trim()){
+  $("search").value="";
+  search("");
+  syncSearchClear();
+  return;
+ }
  const st=e.state||{};
  if(st.view==="imageZoom"){closeImageZoom(true);return}
  if(st.view==="category"||st.view==="brand"){
